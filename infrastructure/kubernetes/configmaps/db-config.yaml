@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: event-monitoring
+data:
+  DB_HOST: "event-db-postgresql.event-monitoring.svc.cluster.local"
+  DB_NAME: "eventdb"
+  DB_USER: "postgres"
+  REDIS_HOST: "event-redis-master.event-monitoring.svc.cluster.local"
+  RABBITMQ_HOST: "event-rabbitmq.event-monitoring.svc.cluster.local"

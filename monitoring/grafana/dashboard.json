@@ -1,0 +1,41 @@
+{
+  "dashboard": {
+    "title": "Event Monitoring Dashboard",
+    "panels": [
+      {
+        "title": "Events Per Second",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(events_received_total[5m])",
+            "legendFormat": "Ingestion Rate"
+          }
+        ]
+      },
+      {
+        "title": "Event Processing Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(event_processing_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th Percentile"
+          }
+        ]
+      },
+      {
+        "title": "System Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"event-ingestor\"}",
+            "legendFormat": "Ingestor"
+          },
+          {
+            "expr": "up{job=\"event-processor\"}",
+            "legendFormat": "Processor"
+          }
+        ]
+      }
+    ]
+  }
+}
