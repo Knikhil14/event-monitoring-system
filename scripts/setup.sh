@@ -4,20 +4,20 @@
 
 set -e
 
-echo "🚀 Starting Event Monitoring System Setup..."
+echo "Starting Event Monitoring System Setup..."
 echo "=========================================="
 
 # Step 1: Clone repository
-echo "📦 Cloning repository..."
-git clone https://github.com/yourusername/event-monitoring-system.git
+echo "Cloning repository..."
+git clone https://github.com/Knikhil14/event-monitoring-system.git
 cd event-monitoring-system
 
 # Step 2: Setup AWS credentials
-echo "🔐 Setting up AWS credentials..."
+echo "Setting up AWS credentials..."
 aws configure
 
 # Step 3: Initialize and apply Terraform
-echo "🏗️ Deploying AWS infrastructure..."
+echo "Deploying AWS infrastructure..."
 cd infrastructure/terraform
 terraform init
 terraform plan -out=tfplan
@@ -28,19 +28,19 @@ EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
 AWS_REGION=$(terraform output -raw aws_region)
 
 # Step 4: Configure kubectl for EKS
-echo "☸️ Configuring kubectl..."
+echo "Configuring kubectl..."
 aws eks update-kubeconfig \
   --region $AWS_REGION \
   --name $EKS_CLUSTER_NAME
 
 # Step 5: Setup Kubernetes
-echo "📦 Setting up Kubernetes..."
+echo "Setting up Kubernetes..."
 cd ../kubernetes
 kubectl apply -f namespaces/
 kubectl apply -f configmaps/
 
 # Step 6: Build and push Docker images
-echo "🐳 Building Docker images..."
+echo "Building Docker images..."
 cd ../../applications
 
 for app in event-ingestor event-processor dashboard; do
@@ -52,24 +52,24 @@ for app in event-ingestor event-processor dashboard; do
 done
 
 # Step 7: Deploy to Kubernetes
-echo "🚀 Deploying applications..."
+echo "Deploying applications..."
 cd ../scripts
 chmod +x deploy.sh
 ./deploy.sh
 
 # Step 8: Setup monitoring
-echo "📊 Setting up monitoring..."
+echo "Setting up monitoring..."
 cd ../monitoring
 kubectl apply -f prometheus/
 kubectl apply -f grafana/
 
 # Step 9: Get access URLs
-echo "🔗 Getting access URLs..."
+echo "Getting access URLs..."
 INGRESS_HOST=$(kubectl get ingress event-monitoring-ingress \
   -n event-monitoring \
   -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
-echo -e "\n✅ Setup Complete!"
+echo -e "\n Setup Complete!"
 echo "=================="
 echo "Access URLs:"
 echo "• Dashboard: http://$INGRESS_HOST"

@@ -39,7 +39,7 @@ def send_metrics(endpoint_url):
         return False
 
 def main():
-    endpoint = "http://events.yourdomain.com/api/events"
+    endpoint = "http://events.kollurinikhil.2bd.net/api/events"
     
     print("Starting real-time monitoring...")
     print(f"Sending metrics to: {endpoint}")

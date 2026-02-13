@@ -77,7 +77,7 @@ pipeline {
                 python -m pytest test_api_integration.py -v
                 
                 # Load test
-                locust -f load_test.py --host=http://events.yourdomain.com --users 100 --spawn-rate 10 --run-time 1m
+                locust -f load_test.py --host=http://events.kollurinikhil.2bd.net --users 100 --spawn-rate 10 --run-time 1m
                 '''
             }
         }
@@ -86,10 +86,10 @@ pipeline {
             steps {
                 sh '''
                 # Check application health
-                curl -f http://events.yourdomain.com/health || exit 1
+                curl -f http://events.kollurinikhil.2bd.net/health || exit 1
                 
                 # Check metrics endpoint
-                curl http://events.yourdomain.com/metrics | jq .
+                curl http://events.kollurinikhil.2bd.net/metrics | jq .
                 '''
             }
         }

@@ -81,6 +81,6 @@ echo "Checking pod status..."
 kubectl get pods -n event-monitoring
 
 echo -e "\nAccess URLs:"
-echo "Dashboard: http://events.yourdomain.com"
-echo "API: http://events.yourdomain.com/api/events"
-echo "Grafana: http://grafana.events.yourdomain.com"
+echo "Dashboard: http://events.kollurinikhil.2bd.net"
+echo "API: http://events.kollurinikhil.2bd.net/api/events"
+echo "Grafana: http://grafana.events.kollurinikhil.2bd.net"

@@ -10,10 +10,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - events.yourdomain.com
+    - events.kollurinikhil.2bd.net 
     secretName: event-monitoring-tls
   rules:
-  - host: events.yourdomain.com
+  - host: events.kollurinikhil.2bd.net 
     http:
       paths:
       - path: /api/events
