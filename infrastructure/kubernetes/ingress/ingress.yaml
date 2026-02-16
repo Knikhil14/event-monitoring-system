@@ -16,7 +16,7 @@ spec:
   - host: events.kollurinikhil.2bd.net 
     http:
       paths:
-      - path: /api/events
+      - path: /api/events 
         pathType: Prefix
         backend:
           service:
