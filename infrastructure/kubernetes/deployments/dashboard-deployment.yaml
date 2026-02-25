@@ -1,0 +1,256 @@
+# Dashboard Deployment (React/Flask frontend)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: event-monitoring
+  labels:
+    app: dashboard
+    tier: frontend
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+        tier: frontend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: dashboard
+        image: your-registry/dashboard:latest  # Replace with your image
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+          name: http
+        - containerPort: 5001
+          name: websocket
+        env:
+        - name: FLASK_ENV
+          value: "production"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: dashboard-secret
+              key: secret-key
+        - name: API_URL
+          value: "http://event-ingestor-service:80"
+        - name: PROCESSOR_URL
+          value: "http://event-processor-service:80"
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          value: "6379"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        - name: SESSION_TYPE
+          value: "redis"
+        - name: SESSION_PERMANENT
+          value: "false"
+        - name: SESSION_USE_SIGNER
+          value: "true"
+        - name: LOG_LEVEL
+          value: "INFO"
+        envFrom:
+        - configMapRef:
+            name: dashboard-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: dashboard-tmp
+          mountPath: /tmp/dashboard
+        - name: dashboard-config-volume
+          mountPath: /app/config
+        - name: static-assets
+          mountPath: /app/static
+      volumes:
+      - name: dashboard-tmp
+        emptyDir: {}
+      - name: dashboard-config-volume
+        configMap:
+          name: dashboard-config
+          optional: true
+      - name: static-assets
+        emptyDir: {}
+      restartPolicy: Always
+---
+# Dashboard Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-service
+  namespace: event-monitoring
+  labels:
+    app: dashboard
+    tier: frontend
+spec:
+  selector:
+    app: dashboard
+  ports:
+  - name: http
+    port: 80
+    targetPort: 5000
+  - name: websocket
+    port: 5001
+    targetPort: 5001
+  type: ClusterIP
+---
+# Dashboard Service (NodePort for direct access - optional)
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-nodeport
+  namespace: event-monitoring
+  labels:
+    app: dashboard
+spec:
+  selector:
+    app: dashboard
+  ports:
+  - port: 80
+    targetPort: 5000
+    nodePort: 30080
+  type: NodePort
+---
+# Horizontal Pod Autoscaler for Dashboard
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dashboard-hpa
+  namespace: event-monitoring
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dashboard
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: 100
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-pdb
+  namespace: event-monitoring
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dashboard
+---
+# Network Policy for Dashboard
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-network-policy
+  namespace: event-monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: event-monitoring
+    ports:
+    - protocol: TCP
+      port: 5000
+    - protocol: TCP
+      port: 5001
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: event-ingestor
+    ports:
+    - protocol: TCP
+      port: 5000
+  - to:
+    - podSelector:
+        matchLabels:
+          app: event-processor
+    ports:
+    - protocol: TCP
+      port: 8000
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379

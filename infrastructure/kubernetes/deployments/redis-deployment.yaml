@@ -1,0 +1,203 @@
+# Redis Master StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: event-redis-master
+  namespace: event-monitoring
+  labels:
+    app: redis
+    role: master
+spec:
+  serviceName: event-redis-master
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: master
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: master
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command:
+          - redis-server
+        args:
+          - "--appendonly"
+          - "yes"
+          - "--save"
+          - "900"
+          - "1"
+          - "--save"
+          - "300"
+          - "10"
+          - "--maxmemory"
+          - "256mb"
+          - "--maxmemory-policy"
+          - "allkeys-lru"
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+              optional: true
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        - name: redis-config
+          mountPath: /usr/local/etc/redis
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi
+---
+# Redis Slave/Replica StatefulSet (for high availability)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: event-redis-slave
+  namespace: event-monitoring
+  labels:
+    app: redis
+    role: slave
+spec:
+  serviceName: event-redis-slave
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: slave
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: slave
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command:
+          - redis-server
+        args:
+          - "--slaveof"
+          - "event-redis-master"
+          - "6379"
+          - "--maxmemory"
+          - "256mb"
+        ports:
+        - containerPort: 6379
+          name: redis
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+# Redis Master Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-redis-master
+  namespace: event-monitoring
+  labels:
+    app: redis
+    role: master
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app: redis
+    role: master
+  clusterIP: None  # Headless service for statefulset
+---
+# Redis Slave Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-redis-slave
+  namespace: event-monitoring
+  labels:
+    app: redis
+    role: slave
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app: redis
+    role: slave
+  clusterIP: None  # Headless service for statefulset
+---
+# Redis Client Service (for applications to connect)
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-redis
+  namespace: event-monitoring
+  labels:
+    app: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app: redis
+    role: master
+  type: ClusterIP

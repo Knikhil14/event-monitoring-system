@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: processor-config
+  namespace: event-monitoring
+data:
+  processor.yaml: |
+    processing:
+      threads: 4
+      batch_size: 100
+      max_queue_size: 1000
+    rules:
+      security_alerts:
+        severities: ["critical", "high"]
+        actions: ["notify", "store"]
+      performance_metrics:
+        threshold_cpu: 90
+        threshold_memory: 85
+        threshold_disk: 90
+    retry:
+      max_attempts: 3
+      backoff_seconds: 5
+    alerts:
+      enabled: true
+      channels: ["slack", "email"]
+    metrics:
+      enabled: true
+      interval_seconds: 15

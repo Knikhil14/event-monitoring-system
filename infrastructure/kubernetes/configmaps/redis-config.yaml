@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: event-monitoring
+data:
+  redis.conf: |
+    # Redis configuration file
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    appendonly yes
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data

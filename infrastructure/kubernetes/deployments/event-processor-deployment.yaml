@@ -1,0 +1,225 @@
+---
+# Event Processor Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-processor
+  namespace: event-monitoring
+  labels:
+    app: event-processor
+    tier: backend
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-processor
+  template:
+    metadata:
+      labels:
+        app: event-processor
+        tier: backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: event-processor
+        image: your-registry/event-processor:latest  # Replace with your image
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 8001
+          name: metrics
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          value: "6379"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        - name: RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: RABBITMQ_HOST
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: PROCESSING_BATCH_SIZE
+          value: "100"
+        envFrom:
+        - configMapRef:
+            name: processor-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: tmp-data
+          mountPath: /tmp/processor
+        - name: processor-config-volume
+          mountPath: /app/config
+      volumes:
+      - name: tmp-data
+        emptyDir: {}
+      - name: processor-config-volume
+        configMap:
+          name: processor-config
+          optional: true
+      restartPolicy: Always
+---
+# Event Processor Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-processor-service
+  namespace: event-monitoring
+  labels:
+    app: event-processor
+    tier: backend
+spec:
+  selector:
+    app: event-processor
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+  - name: metrics
+    port: 8001
+    targetPort: 8001
+  type: ClusterIP
+---
+# Event Processor Headless Service (for discovery)
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-processor-headless
+  namespace: event-monitoring
+  labels:
+    app: event-processor
+spec:
+  clusterIP: None
+  selector:
+    app: event-processor
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+# Horizontal Pod Autoscaler for Event Processor
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: event-processor-hpa
+  namespace: event-monitoring
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: event-processor
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: events_processed_per_second
+      target:
+        type: AverageValue
+        averageValue: 500
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: event-processor-pdb
+  namespace: event-monitoring
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: event-processor

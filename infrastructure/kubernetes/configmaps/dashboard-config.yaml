@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-config
+  namespace: event-monitoring
+data:
+  dashboard.yaml: |
+    app:
+      name: "Event Monitoring Dashboard"
+      version: "1.0.0"
+      debug: false
+    ui:
+      theme: "dark"
+      refresh_interval: 5000
+      default_time_range: "1h"
+    features:
+      realtime_updates: true
+      historical_data: true
+      alerts: true
+      metrics: true
+    charts:
+      enabled: true
+      animation: true
+      default_type: "line"
+    websocket:
+      enabled: true
+      reconnect_attempts: 5
+      reconnect_delay: 3000
+    security:
+      session_timeout: 3600
+      max_login_attempts: 5
+    notifications:
+      enabled: true
+      toast_duration: 5000
+      max_notifications: 50
