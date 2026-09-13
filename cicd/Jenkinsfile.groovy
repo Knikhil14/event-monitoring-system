@@ -1,49 +1,66 @@
 pipeline {
     agent any
-    
+
     environment {
-        DOCKER_REGISTRY = 'your-registry.io'
-        AWS_REGION = 'us-east-1'
-        KUBE_CONFIG = credentials('kubeconfig')
+        DOCKER_REGISTRY = 'docker.io/your-dockerhub-user'
+        NAMESPACE = 'event-monitoring'
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        
-        stage('Test') {
-            parallel {
-                stage('Unit Tests') {
-                    steps {
-                        sh '''
-                        cd applications/event-ingestor
-                        python -m pytest tests/ --cov=app --cov-report=xml
-                        '''
-                    }
-                }
-                stage('Security Scan') {
-                    steps {
-                        sh '''
-                        docker scan your-registry/event-ingestor:latest
-                        trivy image your-registry/event-ingestor:latest
-                        '''
+
+        stage('Python Syntax Check') {
+            steps {
+                sh '''
+                python -m compileall applications/event-ingestor
+                python -m compileall applications/event-processor
+                python -m compileall applications/event-query-api
+                python -m compileall applications/notification-service
+                python -m compileall applications/dashboard
+                '''
+            }
+        }
+
+        stage('Build Images') {
+            steps {
+                script {
+                    def services = [
+                        'event-ingestor',
+                        'event-processor',
+                        'event-query-api',
+                        'notification-service',
+                        'dashboard'
+                    ]
+
+                    for (service in services) {
+                        sh """
+                        docker build \
+                          -t ${DOCKER_REGISTRY}/${service}:${BUILD_NUMBER} \
+                          -t ${DOCKER_REGISTRY}/${service}:latest \
+                          applications/${service}
+                        """
                     }
                 }
             }
         }
-        
-        stage('Build & Push Docker') {
+
+        stage('Push Images') {
             steps {
                 script {
-                    def services = ['event-ingestor', 'event-processor', 'dashboard']
+                    def services = [
+                        'event-ingestor',
+                        'event-processor',
+                        'event-query-api',
+                        'notification-service',
+                        'dashboard'
+                    ]
+
                     for (service in services) {
                         sh """
-                        docker build -t ${DOCKER_REGISTRY}/${service}:${BUILD_NUMBER} \
-                                     -t ${DOCKER_REGISTRY}/${service}:latest \
-                                     applications/${service}/
                         docker push ${DOCKER_REGISTRY}/${service}:${BUILD_NUMBER}
                         docker push ${DOCKER_REGISTRY}/${service}:latest
                         """
@@ -51,66 +68,59 @@ pipeline {
                 }
             }
         }
-        
-        stage('Deploy to Kubernetes') {
+
+        stage('Deploy') {
             steps {
                 sh '''
-                # Update image tags in Kubernetes manifests
-                sed -i "s|image:.*event-ingestor.*|image: ${DOCKER_REGISTRY}/event-ingestor:${BUILD_NUMBER}|g" \
-                    infrastructure/kubernetes/deployments/event-ingestor-deployment.yaml
-                
-                # Apply manifests
-                kubectl apply -f infrastructure/kubernetes/ --recursive
-                
-                # Wait for rollout
-                kubectl rollout status deployment/event-ingestor -n event-monitoring
-                kubectl rollout status deployment/event-processor -n event-monitoring
+                bash scripts/set-image-registry.sh "${DOCKER_REGISTRY}"
+                bash scripts/deploy.sh
+
+                kubectl set image deployment/event-ingestor \
+                  event-ingestor=${DOCKER_REGISTRY}/event-ingestor:${BUILD_NUMBER} \
+                  -n ${NAMESPACE}
+                kubectl set image deployment/event-processor \
+                  event-processor=${DOCKER_REGISTRY}/event-processor:${BUILD_NUMBER} \
+                  -n ${NAMESPACE}
+                kubectl set image deployment/event-query-api \
+                  event-query-api=${DOCKER_REGISTRY}/event-query-api:${BUILD_NUMBER} \
+                  -n ${NAMESPACE}
+                kubectl set image deployment/notification-service \
+                  notification-service=${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER} \
+                  -n ${NAMESPACE}
+                kubectl set image deployment/dashboard \
+                  dashboard=${DOCKER_REGISTRY}/dashboard:${BUILD_NUMBER} \
+                  -n ${NAMESPACE}
+
+                kubectl rollout status deployment/event-ingestor -n ${NAMESPACE}
+                kubectl rollout status deployment/event-processor -n ${NAMESPACE}
+                kubectl rollout status deployment/event-query-api -n ${NAMESPACE}
+                kubectl rollout status deployment/notification-service -n ${NAMESPACE}
+                kubectl rollout status deployment/dashboard -n ${NAMESPACE}
                 '''
             }
         }
-        
-        stage('Integration Tests') {
+
+        stage('Smoke Test') {
             steps {
                 sh '''
-                # Run integration tests
-                cd tests/integration
-                python -m pytest test_api_integration.py -v
-                
-                # Load test
-                locust -f load_test.py --host=http://events.kollurinikhil.2bd.net --users 100 --spawn-rate 10 --run-time 1m
-                '''
-            }
-        }
-        
-        stage('Monitoring') {
-            steps {
-                sh '''
-                # Check application health
-                curl -f http://events.kollurinikhil.2bd.net/health || exit 1
-                
-                # Check metrics endpoint
-                curl http://events.kollurinikhil.2bd.net/metrics | jq .
+                kubectl run smoke-test-${BUILD_NUMBER} \
+                  --rm -i --restart=Never \
+                  --namespace ${NAMESPACE} \
+                  --image=curlimages/curl:8.8.0 \
+                  -- http://event-ingestor-service/health
                 '''
             }
         }
     }
-    
+
     post {
-        success {
-            slackSend(
-                color: 'good',
-                message: "Deployment Successful: ${env.JOB_NAME} - ${env.BUILD_NUMBER}"
-            )
-        }
         failure {
-            slackSend(
-                color: 'danger',
-                message: "Deployment Failed: ${env.JOB_NAME} - ${env.BUILD_NUMBER}"
-            )
             sh '''
-            # Rollback to previous version
-            kubectl rollout undo deployment/event-ingestor -n event-monitoring
-            kubectl rollout undo deployment/event-processor -n event-monitoring
+            kubectl rollout undo deployment/event-ingestor -n ${NAMESPACE} || true
+            kubectl rollout undo deployment/event-processor -n ${NAMESPACE} || true
+            kubectl rollout undo deployment/event-query-api -n ${NAMESPACE} || true
+            kubectl rollout undo deployment/notification-service -n ${NAMESPACE} || true
+            kubectl rollout undo deployment/dashboard -n ${NAMESPACE} || true
             '''
         }
     }

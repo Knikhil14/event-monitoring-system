@@ -17,14 +17,55 @@ spec:
     spec:
       containers:
       - name: event-ingestor
-        image: your-registry/event-ingestor:latest
+        image: event-ingestor:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
-        envFrom:
-        - configMapRef:
-            name: db-config
-        - secretRef:
-            name: db-secret
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          value: "6379"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        - name: RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: RABBITMQ_HOST
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
         resources:
           requests:
             memory: "128Mi"
@@ -57,3 +98,17 @@ spec:
   - port: 80
     targetPort: 5000
   type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-ingestor-nodeport
+  namespace: event-monitoring
+spec:
+  selector:
+    app: event-ingestor
+  ports:
+  - port: 80
+    targetPort: 5000
+    nodePort: 30081
+  type: NodePort

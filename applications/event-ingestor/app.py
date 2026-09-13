@@ -5,6 +5,7 @@ import json
 import os
 from datetime import datetime
 import pika
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
 
@@ -16,6 +17,15 @@ DB_NAME = os.getenv('DB_NAME', 'eventdb')
 DB_USER = os.getenv('DB_USER', 'postgres')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST', 'localhost')
+RABBITMQ_PORT = int(os.getenv('RABBITMQ_PORT', 5672))
+RABBITMQ_USER = os.getenv('RABBITMQ_USER', 'admin')
+RABBITMQ_PASSWORD = os.getenv('RABBITMQ_PASSWORD', 'admin')
+
+EVENTS_RECEIVED = Counter(
+    'events_received_total',
+    'Total events received by the ingestor',
+    ['severity', 'event_type']
+)
 
 # Initialize connections
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
@@ -30,8 +40,13 @@ def get_db_connection():
 
 def publish_to_queue(event_data):
     """Publish event to RabbitMQ for async processing"""
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host=RABBITMQ_HOST)
+        pika.ConnectionParameters(
+            host=RABBITMQ_HOST,
+            port=RABBITMQ_PORT,
+            credentials=credentials
+        )
     )
     channel = connection.channel()
     channel.queue_declare(queue='event_queue', durable=True)
@@ -50,10 +65,16 @@ def publish_to_queue(event_data):
 def health_check():
     return jsonify({"status": "healthy", "service": "event-ingestor"}), 200
 
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
 @app.route('/api/events', methods=['POST'])
 def receive_event():
     try:
         event_data = request.json
+        if not isinstance(event_data, dict):
+            return jsonify({"error": "Request body must be JSON object"}), 400
         
         # Validate required fields
         required_fields = ['event_type', 'source', 'severity']
@@ -68,11 +89,15 @@ def receive_event():
         
         # Store in Redis for real-time access
         event_id = f"event:{datetime.utcnow().timestamp()}"
-        redis_client.hset(event_id, mapping=event_data)
+        redis_client.hset(event_id, mapping=string_mapping(event_data))
         redis_client.expire(event_id, 3600)  # Expire after 1 hour
         
         # Publish to queue for async processing
         publish_to_queue(event_data)
+        EVENTS_RECEIVED.labels(
+            severity=event_data['severity'],
+            event_type=event_data['event_type']
+        ).inc()
         
         # Store in PostgreSQL (sync for critical events)
         if event_data['severity'] in ['critical', 'high']:
@@ -112,6 +137,13 @@ def store_in_database(event_data):
         
     except Exception as e:
         app.logger.error(f"Database error: {str(e)}")
+
+def string_mapping(event_data):
+    """Redis hashes need scalar values; nested fields are stored as JSON."""
+    return {
+        key: value if isinstance(value, str) else json.dumps(value)
+        for key, value in event_data.items()
+    }
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

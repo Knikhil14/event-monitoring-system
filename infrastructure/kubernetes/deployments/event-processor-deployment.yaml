@@ -27,13 +27,11 @@ spec:
     spec:
       containers:
       - name: event-processor
-        image: your-registry/event-processor:latest  # Replace with your image
-        imagePullPolicy: Always
+        image: event-processor:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http
-        - containerPort: 8001
-          name: metrics
         env:
         - name: REDIS_HOST
           valueFrom:
@@ -140,9 +138,6 @@ spec:
   - name: http
     port: 80
     targetPort: 8000
-  - name: metrics
-    port: 8001
-    targetPort: 8001
   type: ClusterIP
 ---
 # Event Processor Headless Service (for discovery)
@@ -188,13 +183,6 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
-  - type: Pods
-    pods:
-      metric:
-        name: events_processed_per_second
-      target:
-        type: AverageValue
-        averageValue: 500
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
