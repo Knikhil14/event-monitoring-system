@@ -50,7 +50,11 @@ spec:
         - name: rabbitmq-data
           mountPath: /var/lib/rabbitmq
         - name: rabbitmq-config
-          mountPath: /etc/rabbitmq/conf.d/
+          mountPath: /etc/rabbitmq/enabled_plugins
+          subPath: enabled_plugins
+        - name: rabbitmq-config
+          mountPath: /etc/rabbitmq/conf.d/10-defaults.conf
+          subPath: 10-defaults.conf
         livenessProbe:
           exec:
             command:
