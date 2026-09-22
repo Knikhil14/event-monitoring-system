@@ -51,7 +51,7 @@ class EventProcessor:
             password=DB_PASSWORD,
         )
 
-    def process_event(self, event_data: Dict[str, Any]) -> None:
+    def process_event(self, event_data: Dict[str, Any]) -> bool:
         status = "processed"
         try:
             event_data["processed_at"] = datetime.utcnow().isoformat()
@@ -69,11 +69,13 @@ class EventProcessor:
             self.redis_client.hset(event_id, mapping=self._string_mapping(event_data))
             self.redis_client.expire(event_id, 3600)
             logger.info("Processed event: %s", event_data.get("event_type"))
+            return True
         except Exception as exc:
             status = "failed"
             event_data["status"] = status
             event_data["error"] = str(exc)
             logger.exception("Error processing event")
+            return False
         finally:
             EVENTS_PROCESSED.labels(
                 severity=event_data.get("severity", "unknown"),
@@ -165,13 +167,16 @@ def consume_events() -> None:
             def callback(ch, method, properties, body):
                 try:
                     event_data = json.loads(body)
-                    processor.process_event(event_data)
-                    if event_data.get("severity") in ["critical", "high"]:
+                    processed = processor.process_event(event_data)
+                    if processed and event_data.get("severity") in ["critical", "high"]:
                         processor.publish_notification(event_data)
-                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                    if processed:
+                        ch.basic_ack(delivery_tag=method.delivery_tag)
+                    else:
+                        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
                 except Exception:
                     logger.exception("Could not process queue message")
-                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
             channel.basic_consume(queue="event_queue", on_message_callback=callback)
             logger.info("Event processor consumer started")
