@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: event-query-api
-        image: event-query-api:latest
+        image: kollurinikhil/event-query-api:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

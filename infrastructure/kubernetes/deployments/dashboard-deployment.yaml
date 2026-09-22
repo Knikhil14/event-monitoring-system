@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: dashboard
-        image: dashboard:latest
+        image: kollurinikhil/dashboard:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000

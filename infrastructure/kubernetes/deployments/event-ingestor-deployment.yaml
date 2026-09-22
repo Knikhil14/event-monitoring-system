@@ -17,8 +17,10 @@ spec:
     spec:
       containers:
       - name: event-ingestor
-        image: event-ingestor:latest
+        image: kollurinikhil/event-ingestor:latest
         imagePullPolicy: IfNotPresent
+        command: ["gunicorn"]
+        args: ["--bind", "0.0.0.0:5000", "app:app", "--workers", "1"]
         ports:
         - containerPort: 5000
         env:
@@ -68,10 +70,10 @@ spec:
               key: password
         resources:
           requests:
-            memory: "128Mi"
+            memory: "256Mi"
             cpu: "100m"
           limits:
-            memory: "256Mi"
+            memory: "512Mi"
             cpu: "200m"
         livenessProbe:
           httpGet:

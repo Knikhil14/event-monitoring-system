@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
       - name: event-processor
-        image: event-processor:latest
+        image: kollurinikhil/event-processor:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
