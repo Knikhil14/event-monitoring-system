@@ -1,0 +1,33 @@
+[33m34fe9a1[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m application code updates and added project details
+ README.md                                          | 136 [32m++++++++[m
+ applications/dashboard/Dockerfile                  |  12 [32m+[m
+ applications/dashboard/app.py                      |  94 [32m+++++[m
+ applications/dashboard/requirements.txt            |   3 [32m+[m
+ applications/event-ingestor/app.py                 | 132 [32m++++[m[31m---[m
+ applications/event-ingestor/requirements.txt       |   3 [32m+[m[31m-[m
+ applications/event-processor/Dockerfile            |  12 [32m+[m
+ applications/event-processor/main.py               | 379 [32m+++++++++++[m[31m----------[m
+ applications/event-processor/requirements.txt      |   6 [32m+[m
+ applications/event-query-api/Dockerfile            |  12 [32m+[m
+ applications/event-query-api/main.py               |  86 [32m+++++[m
+ applications/event-query-api/requirements.txt      |   4 [32m+[m
+ applications/notification-service/Dockerfile       |  12 [32m+[m
+ applications/notification-service/main.py          |  70 [32m++++[m
+ applications/notification-service/requirements.txt |   2 [32m+[m
+ cicd/Jenkinsfile.groovy                            | 244 [32m++++++[m[31m-------[m
+ .../deployments/dashboard-deployment.yaml          | 328 [32m++++[m[31m--------------[m
+ .../deployments/event-ingestor-deployment.yaml     |  89 [32m++++[m[31m-[m
+ .../deployments/event-processor-deployment.yaml    |  38 [32m+[m[31m--[m
+ .../deployments/event-query-api-deployment.yaml    |  80 [32m+++++[m
+ .../notification-service-deployment.yaml           |  65 [32m++++[m
+ .../deployments/postgresql-statefulset.yaml        |  30 [32m+[m[31m-[m
+ .../deployments/rabbitmq-deployment.yaml           |   6 [32m+[m[31m-[m
+ infrastructure/kubernetes/ingress/ingress.yaml     |  56 [32m+[m[31m--[m
+ infrastructure/kubernetes/jobs/db-init-job.yaml    |  58 [32m++++[m
+ monitoring/prometheus/prometheus-config.yaml       |  24 [32m+[m[31m-[m
+ scripts/build-and-push.sh                          |  27 [32m++[m
+ scripts/deploy.sh                                  | 156 [32m+++[m[31m------[m
+ scripts/set-image-registry.sh                      |  17 [32m+[m
+ scripts/setup.sh                                   | 106 [32m++[m[31m----[m
+ scripts/test-events.sh                             |  22 [32m++[m
+ 31 files changed, 1426 insertions(+), 883 deletions(-)
