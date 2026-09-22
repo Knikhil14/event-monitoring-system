@@ -76,7 +76,9 @@ def build_pdf(path, lines):
     ]
     for page in page_lines:
         stream = 'BT /F1 9 Tf 45 755 Td 11 TL ' + ' '.join(f'({pdf_escape(x)}) Tj T*' for x in page) + ' ET'
-        objects += [f'<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /MediaBox [0 0 612 792] /Contents {len(objects)+1} 0 R >>', f'<< /Length {len(stream.encode())} >>\nstream\n{stream}\nendstream']
+        page_object_number = len(objects) + 1
+        content_object_number = page_object_number + 1
+        objects += [f'<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /MediaBox [0 0 612 792] /Contents {content_object_number} 0 R >>', f'<< /Length {len(stream.encode())} >>\nstream\n{stream}\nendstream']
     out=b'%PDF-1.4\n'; offsets=[]
     for n,obj in enumerate(objects,1): offsets.append(len(out)); out += f'{n} 0 obj\n{obj}\nendobj\n'.encode()
     xref=len(out); out += f'xref\n0 {len(objects)+1}\n0000000000 65535 f \n'.encode(); out += ''.join(f'{o:010d} 00000 n \n' for o in offsets).encode(); out += f'trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n'.encode(); path.write_bytes(out)
