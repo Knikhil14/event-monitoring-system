@@ -4,7 +4,7 @@ set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
   echo "Usage: $0 <registry-prefix>"
-  echo "Example: $0 docker.io/your-user"
+  echo "Example: $0 docker.io/kollurinikhil"
   exit 1
 fi
 

@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_REGISTRY = 'docker.io/your-dockerhub-user'
+        DOCKER_REGISTRY = 'docker.io/kollurinikhil'
         NAMESPACE = 'event-monitoring'
     }
 

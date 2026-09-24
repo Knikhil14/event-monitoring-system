@@ -7,7 +7,7 @@ echo "===================================================="
 echo
 echo "This setup assumes kubectl is already connected to your playground cluster."
 echo "Usage: bash scripts/setup.sh <registry-prefix>"
-echo "Example: bash scripts/setup.sh docker.io/your-dockerhub-user"
+echo "Example: bash scripts/setup.sh docker.io/kollurinikhil"
 echo
 echo "Required images:"
 echo "- event-ingestor:latest"
